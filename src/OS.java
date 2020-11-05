@@ -74,11 +74,12 @@ public class OS {
         System.out.println("==============================================================");
         System.out.println("| Welcome to Simulated OS (Java)                             |");
         System.out.println("| Author: Jamel Hendricks                                    |");
-        System.out.println("| Stage: [Phase 2]                                           |");
+        System.out.println("| Stage: [Phase 3]                                           |");
         System.out.println("| UPDATES:                                                   |");
-        System.out.println("|      + able to run processes with two different algorithms |");
-        System.out.println("|        (round table / multi level queue)                   |");
-        System.out.println("|      + runs automatically in loop until processes finish   |");
+        System.out.println("|      + processes are able to enter uninterruptable         |");
+        System.out.println("|        critical sections (round table / multi level queue) |");
+        System.out.println("|      + critical instructions are constantly run on CPU,    |");
+        System.out.println("|        process queues / PCB states locked by semaphores    |");
         System.out.println("==============================================================");
         System.out.println("Ready for new command: [start process] [print process table] [exit]");
 
