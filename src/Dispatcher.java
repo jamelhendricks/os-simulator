@@ -1,8 +1,12 @@
 import java.util.ArrayList;
 import java.util.Queue;
 import java.util.Scanner;
+import java.util.concurrent.Semaphore;
+import java.lang.Thread;
 
 public class Dispatcher {
+
+    private static Semaphore access = new Semaphore(1);
 
     // confirm the next instruction on @param PCB is a CPU runnable instruction
     public static int check_runnable_instruction(ProcessControlBlock pcb){
@@ -15,6 +19,9 @@ public class Dispatcher {
             return 0;
         } else if(indicator.equals("DONE")){
             return -1;
+        } else if(indicator.equals("C")){
+            scan.close();
+            return 9;
         } else {
             scan.close();
             return 1;
@@ -56,7 +63,6 @@ public class Dispatcher {
     // check how many cyles the current instruction requires on @param PCB
     public static int check_instruction_cycles(ProcessControlBlock pcb){
         String instruction = pcb.get_current_instruction();
-        // System.out.println("instruction: " + instruction);
         Scanner scan = new Scanner(instruction);
         
         String bypass = scan.next(); // bypass first token (the instruction type indicator)
@@ -84,13 +90,17 @@ public class Dispatcher {
     }
 
     // update the head process on @param PCB with @param cycles
-    public static void update_head_process(Queue<ProcessControlBlock> generic_q, int cycles_ran){
+    // returns true if completed this instruction and moved to next
+    public static boolean update_head_process(Queue<ProcessControlBlock> generic_q, int cycles_ran){
         ProcessControlBlock head = generic_q.peek();
         head.update_cycles_ran(cycles_ran);
 
         // if finished this instruction load the next one
         if(head.get_cycles_ran() >= check_instruction_cycles(head)){
             head.load_next_instruction();
+            return true;
+        } else {
+            return false;
         }
     }
 
@@ -105,6 +115,16 @@ public class Dispatcher {
         if(generic_q.size() > 0){
             update_head_process(generic_q, cycles);
             shift_next_q(generic_q);
+        }
+    }
+
+    // apply round table execution for CRITICAL section to @param queue for @param cycles
+    // returns true if completed instruction
+    public static boolean exercise_q_round_CRITICAL(Queue<ProcessControlBlock> generic_q, int cycles){
+        if(generic_q.size() > 0 && generic_q.peek().get_cycles_ran() < check_instruction_cycles(generic_q.peek())){
+            return update_head_process(generic_q, cycles);
+        } else {
+            return true;
         }
     }
 
@@ -125,6 +145,22 @@ public class Dispatcher {
         }
     }
 
+    // apply multilevel execution for CRITICAL section to @param queue for @param cycles
+    // returns true if completed instruction
+    public static boolean exercise_q_multi_CRITICAL(Queue<ProcessControlBlock> any_q, int cycles){
+        if(any_q.size() > 0 && any_q.peek().get_cycles_ran() < check_instruction_cycles(any_q.peek())){
+            try {
+                System.out.println("\n\nInside of a multilevel crit section!");
+                Thread.sleep(500);
+            } catch (Exception e) {
+                System.out.println("THread.sleep() exception!");
+            }
+            return update_head_process(any_q, cycles);
+        } else {
+            return true;
+        }
+    }
+
     // terminate head process on @param queue
     public static void terminate_process(Queue<ProcessControlBlock> generic_q){
         ProcessControlBlock head = generic_q.remove();
@@ -135,13 +171,23 @@ public class Dispatcher {
     public static boolean run_round_table(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> waiting_q, CPU cpu, int time_t){
         int operator;
         while ( running_q.size() > 0 || waiting_q.size() > 0 ){
-            
+
             if(running_q.size() > 0){
                 operator = check_runnable_instruction(running_q.peek());
                 if(operator == 1){
                     wait_running_head(running_q, waiting_q);
                 } else if(operator == -1){
                     terminate_process(running_q);
+                } else if(operator == 9){
+                    // we have encountered / are in a critical section instruction
+                    if (access.availablePermits() == 1){
+                        try{
+                            access.acquire();
+                            System.out.println("\n\njust called acquire!");
+                        } catch (InterruptedException e){
+                            System.out.println("Tried to acquire a permite when there was none!");
+                        }
+                    }
                 }
             }
 
@@ -154,17 +200,32 @@ public class Dispatcher {
                 }
             }
 
-            // System.out.println("PRE OPERATION QUEUE CHECK: ");
-            // print_qs(running_q, waiting_q);
-
 
             if(cpu.callback_after_cycles(time_t)){
                 System.out.println("\n\n");
 
                 System.out.println("Processed " + time_t + " cycles!");              
 
-               exercise_q_round(running_q, time_t);
-               exercise_q_round(waiting_q, time_t);
+                // if permit is available, cases:
+                //     a) critical section is over
+                //     b) we were not in a critical section
+                // permit not available, things that need to happen now:
+                //     a) update the PCB -> done in the CRITICAL exercise method
+                //     b) shift to next PCB
+                if (access.availablePermits() == 1){
+                    exercise_q_round(running_q, time_t);
+                    exercise_q_round(waiting_q, time_t);
+                } else {
+                    boolean complete_critical = exercise_q_round_CRITICAL(running_q, time_t);
+
+                    // release the semaphore lock if the critical instruction was completed
+                    if(complete_critical){
+                        access.release();
+                        System.out.println("Semaphore condition met! Access lock released!");
+                    }
+
+                }
+
 
                 System.out.println("Operation Summary: ");
                 if(running_q.size() > 0){ 
@@ -178,9 +239,6 @@ public class Dispatcher {
                 System.out.println("\n\n");
             }
 
-            // System.out.println("POST OPERATION QUEUE CHECK: ");
-            // print_qs(running_q, waiting_q);
-
         }
 
         return true;
@@ -189,6 +247,8 @@ public class Dispatcher {
     // run all processes in @param queues using multi level queue algorithm
     public static boolean run_multi_level(Queue<ProcessControlBlock> fast, Queue<ProcessControlBlock> mid, Queue<ProcessControlBlock> slow, Queue<ProcessControlBlock> waiting_q, CPU cpu, int time_t){
         int operator;
+        Queue<ProcessControlBlock> critical_q = null; // holder for the queue that contains the crit section process
+
         while ( fast.size() > 0 || mid.size() > 0 || slow.size() > 0 || waiting_q.size() > 0){
 
             if (fast.size() > 0){
@@ -197,6 +257,17 @@ public class Dispatcher {
                     wait_running_head(fast, waiting_q);
                 } else if(operator == -1){
                     terminate_process(fast);
+                } else if(operator == 9){
+                    // we have encountered / are in a critical section instruction
+                    if (access.availablePermits() == 1){
+                        try{
+                            access.acquire();
+                            System.out.println("\n\njust called acquire!");
+                            critical_q = fast;
+                        } catch (InterruptedException e){
+                            System.out.println("Tried to acquire a permite when there was none!");
+                        }
+                    }
                 }
             }
 
@@ -206,6 +277,17 @@ public class Dispatcher {
                     wait_running_head(mid, waiting_q);
                 } else if(operator == -1){
                     terminate_process(mid);
+                } else if(operator == 9){
+                    // we have encountered / are in a critical section instruction
+                    if (access.availablePermits() == 1){
+                        try{
+                            access.acquire();
+                            System.out.println("\n\njust called acquire!");
+                            critical_q = mid;
+                        } catch (InterruptedException e){
+                            System.out.println("Tried to acquire a permite when there was none!");
+                        }
+                    }
                 }
             }
 
@@ -215,6 +297,17 @@ public class Dispatcher {
                     wait_running_head(slow, waiting_q);
                 } else if(operator == -1){
                     terminate_process(slow);
+                } else if(operator == 9){
+                    // we have encountered / are in a critical section instruction
+                    if (access.availablePermits() == 1){
+                        try{
+                            access.acquire();
+                            critical_q = slow;
+                            System.out.println("\n\njust called acquire!");
+                        } catch (InterruptedException e){
+                            System.out.println("Tried to acquire a permite when there was none!");
+                        }
+                    }
                 }
             }
 
@@ -232,10 +325,36 @@ public class Dispatcher {
 
                 System.out.println("Processed " + time_t + " cycles!");              
 
-               exercise_q_multi(fast, mid, time_t);
-               exercise_q_multi(mid, slow, time_t);
-               exercise_q_multi(slow, null, time_t);
-               exercise_q_round(waiting_q, time_t);
+               
+
+
+                // if permit is available, cases:
+                //     a) critical section is over
+                //     b) we were not in a critical section
+                // permit not available, things that need to happen now:
+                //     a) update the PCB -> done in the CRITICAL exercise method
+                //     b) shift to next PCB
+                if (access.availablePermits() == 1){
+                    exercise_q_multi(fast, mid, time_t);
+                    exercise_q_multi(mid, slow, time_t);
+                    exercise_q_multi(slow, null, time_t);
+                    exercise_q_round(waiting_q, time_t);
+                } else {                    
+                    boolean complete_critical = exercise_q_multi_CRITICAL(critical_q, time_t);
+                    // release the semaphore lock if the critical instruction was completed
+                    if(complete_critical){
+                        access.release();
+                        critical_q = null;
+                        try {
+                                System.out.println("\n\nFinished the multilevel crit section!!\n\n");
+                                Thread.sleep(6000);
+                            } catch (Exception e) {
+                                System.out.println("THread.sleep() exception!");
+                            }
+                        System.out.println("Semaphore condition met! Access lock released!");
+                    }
+
+                }
 
                 System.out.println("Operation Summary: ");
                 if(fast.size() > 0){ 

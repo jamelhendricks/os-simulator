@@ -62,6 +62,18 @@ public class Process {
                 read_line.close();
             } else if (next_instruction.equals("I/O")){
                 text_section.add("W " + generate_io()); // W to signal wait queue
+            } else if (next_instruction.equals("<CRITICAL>")){
+                next_instruction = file_in.nextLine(); // skip to the actual instruction, not <CRITICAL>
+                Scanner read_line = new Scanner(next_instruction);
+                System.out.println("critical section actual code: " + next_instruction);
+                read_line.next(); // skip the nex token (calculate)
+                int temp_cycles = read_line.nextInt();
+
+                text_section.add("C " + generate_critical(temp_cycles)); // C to signal critical section
+                read_line.close();
+
+            } else if (next_instruction.equals("</CRITICAL>")) {
+                // do nothing
             }
         }
 
@@ -85,6 +97,16 @@ public class Process {
             multiplier = 5;
         } 
         return temp_cycles * multiplier;
+    }
+
+    public int generate_critical(int temp_cycles){
+        Random random = new Random();
+        int multiplier = random.nextInt(15);
+        if (multiplier == 0){
+            multiplier = 15;
+        }
+
+        return (temp_cycles * multiplier) + 800;
     }
 
     public void print_text_section(){
