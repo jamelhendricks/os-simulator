@@ -149,12 +149,6 @@ public class Dispatcher {
     // returns true if completed instruction
     public static boolean exercise_q_multi_CRITICAL(Queue<ProcessControlBlock> any_q, int cycles){
         if(any_q.size() > 0 && any_q.peek().get_cycles_ran() < check_instruction_cycles(any_q.peek())){
-            try {
-                System.out.println("\n\nInside of a multilevel crit section!");
-                Thread.sleep(500);
-            } catch (Exception e) {
-                System.out.println("THread.sleep() exception!");
-            }
             return update_head_process(any_q, cycles);
         } else {
             return true;
@@ -345,12 +339,6 @@ public class Dispatcher {
                     if(complete_critical){
                         access.release();
                         critical_q = null;
-                        try {
-                                System.out.println("\n\nFinished the multilevel crit section!!\n\n");
-                                Thread.sleep(6000);
-                            } catch (Exception e) {
-                                System.out.println("THread.sleep() exception!");
-                            }
                         System.out.println("Semaphore condition met! Access lock released!");
                     }
 
