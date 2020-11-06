@@ -10,8 +10,8 @@ public class OS {
 
     private static int pid_index = 0; 
     public static ProcessTable p_table = null;
-    public static File template_1, template_2, template_3, template_4, template_5;
-    public static File[] templates = new File[5];
+    public static File template_1, template_2, template_3, template_4, template_5, child_template;
+    public static File[] templates = new File[6];
 
     public static Queue<ProcessControlBlock> waiting_q = new LinkedList<>();
     public static Queue<ProcessControlBlock> roundtable_q = new LinkedList<>();
@@ -30,11 +30,32 @@ public class OS {
         }
     }
 
+    // create a child process
+    public static ProcessControlBlock init_child_process(){
+        Process p = new Process("[Child Process]", templates[5]);
+        ProcessControlBlock pcb = new ProcessControlBlock(p, pid_index, Enums.ProcessPriority.LOW); // default as LOW, change later
+        p.generate_code();
+
+        pid_index = pid_index + 1;
+        p_table.add_process(pcb);
+
+        return pcb;
+    }
+
     // create a PCB for some process {p}, 
     public static void init_process(Process p){
         ProcessControlBlock pcb = new ProcessControlBlock(p, pid_index, Enums.ProcessPriority.MEDIUM); // default as MEDIUM, change later
         pcb.set_memory_requirement(p.get_memory_requirement());
-        p.generate_code(); // generate the instructions with CPU cycles
+        int skip_to = p.generate_code();
+        ProcessControlBlock child = null;
+        if (skip_to != -1){
+            // create a child process
+            child = init_child_process();
+            p.generate_code_skip_to_line(skip_to);
+            pcb.set_child(child);
+        } else {
+            // do nothing, no child process
+        }
 
         pid_index = pid_index + 1;
         p_table.add_process(pcb);
@@ -55,12 +76,14 @@ public class OS {
         template_3 = new File("templates/template_3.txt");
         template_4 = new File("templates/template_4.txt");
         template_5 = new File("templates/template_5.txt");
+        child_template = new File("templates/child_template.txt");
 
         templates[0] = template_1;
         templates[1] = template_2;
         templates[2] = template_3;
         templates[3] = template_4;
         templates[4] = template_5;
+        templates[5] = child_template;
     }
 
     // OS main loop
