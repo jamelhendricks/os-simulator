@@ -16,7 +16,7 @@ import java.io.FileNotFoundException;
 public class Process {
 
     private String process_name;
-    private ArrayList<String> text_section;
+    public ArrayList<String> text_section;
     private String[] data_section;
     private File template;
     private int memory_requirement;
@@ -57,14 +57,15 @@ public class Process {
                 read_line.next(); // skip the next token (calculate)
 
                 int temp_cycles = read_line.nextInt();
-                text_section.add("RUN" + generate_calc(temp_cycles));
+                text_section.add("R " + generate_calc(temp_cycles)); // R to signal ready queue
 
                 read_line.close();
             } else if (next_instruction.equals("I/O")){
-                text_section.add("RUN" + generate_io());
+                text_section.add("W " + generate_io()); // W to signal wait queue
             }
         }
 
+        text_section.add("DONE");
         file_in.close();
     }
 
@@ -97,6 +98,14 @@ public class Process {
 
         generate_code(); // create text section from template
     }
+
+    // public static void main(String[] args){
+    //     File t = new File("templates/template_1.txt");
+    //     Process p = new Process("test", t);
+    //     p.generate_code();
+    //     System.out.println(p.text_section);
+    //     System.out.println(p.text_section.get(3));
+    // }
 
 
 }

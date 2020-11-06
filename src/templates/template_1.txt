@@ -1,5 +1,4 @@
 100
-OUT
 CALCULATE 20
 I/O 
 I/O

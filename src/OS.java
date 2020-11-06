@@ -1,6 +1,10 @@
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Scanner;
+import java.util.Queue;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.lang.Thread;
 
 public class OS {
 
@@ -9,26 +13,37 @@ public class OS {
     public static File template_1, template_2, template_3, template_4, template_5;
     public static File[] templates = new File[5];
 
+    public static Queue<ProcessControlBlock> waiting_q = new LinkedList<>();
+    public static Queue<ProcessControlBlock> roundtable_q = new LinkedList<>();
+
+    public static Queue<ProcessControlBlock> fast_q = new LinkedList<>();
+    public static Queue<ProcessControlBlock> mid_q = new LinkedList<>();
+    public static Queue<ProcessControlBlock> slow_q = new LinkedList<>();
+
+    public static CPU cpu = null;
+    public static Dispatcher dispatcher = null;
+
+    public static void schedule_prep(){
+        ArrayList<ProcessControlBlock> pcb_list = p_table.get_list(); 
+        for (ProcessControlBlock pcb : pcb_list){
+            waiting_q.add(pcb);
+        }
+    }
 
     // create a PCB for some process {p}, 
     public static void init_process(Process p){
         ProcessControlBlock pcb = new ProcessControlBlock(p, pid_index, Enums.ProcessPriority.MEDIUM); // default as MEDIUM, change later
         pcb.set_memory_requirement(p.get_memory_requirement());
+        p.generate_code(); // generate the instructions with CPU cycles
 
         pid_index = pid_index + 1;
         p_table.add_process(pcb);
     }
 
-    // update a process state, find the process by PID
-    public static boolean update_process_state(int pid, Enums.ProcessState state){
-        
-        if (p_table.get_pcb_by_pid(pid) != null){
-            ProcessControlBlock pcb = p_table.get_pcb_by_pid(pid);
-            pcb.set_state(state);
-            return true;
-        } else {
-            return false;
-        }
+    public static void print_finish(){
+        System.out.println("======================================\n\n");
+        System.out.println("COMPLETED RUNS - ALL PROCESSES TERMINATED!");
+        System.out.println("\n\n======================================");
     }
 
     // create new process table for this OS instance
@@ -52,18 +67,31 @@ public class OS {
     public static void run_os(){
         Scanner key_in = new Scanner(System.in);
 
-        System.out.println("Welcome to Simulated OS (Java)");
-        System.out.println("Author: Jamel Hendricks");
-        System.out.println("Stage: Phase 1");
-        System.out.println("Ready for new command: [start process] [print process table] [exit]");
+        cpu = new CPU(); // instantiate CPU, starting CPU clock thread
+        dispatcher = new Dispatcher(); // instantiate dispatcher
 
+
+        System.out.println("==============================================================");
+        System.out.println("| Welcome to Simulated OS (Java)                             |");
+        System.out.println("| Author: Jamel Hendricks                                    |");
+        System.out.println("| Stage: [Phase 2]                                           |");
+        System.out.println("| UPDATES:                                                   |");
+        System.out.println("|      + able to run processes with two different algorithms |");
+        System.out.println("|        (round table / multi level queue)                   |");
+        System.out.println("|      + runs automatically in loop until processes finish   |");
+        System.out.println("==============================================================");
+        System.out.println("Ready for new command: [start process] [print process table] [exit]");
 
         while(true){
             String user_command = key_in.nextLine();
 
             if (process_input(user_command) == 0){
                 System.out.println("");
-                System.out.println("Ready for new command: [start process] [print process table] [exit]");
+                if (p_table.get_count() > 0){
+                    System.out.println("Ready for new command: [start process] [print process table] [run] [exit]");
+                } else {
+                    System.out.println("Ready for new command: [start process] [print process table] [exit]");
+                }
             } else if ( process_input(user_command) == -1){
                 System.exit(0);
             } else {
@@ -93,7 +121,6 @@ public class OS {
             init_process(p);
 
             line_reader.close();
-            key_in.close();
 
             return 0;
 
@@ -105,11 +132,28 @@ public class OS {
             System.out.println("");
             System.out.println("");
                         
-            key_in.close();
-
             return 0;
 
-        } else if (user_command.equals("exit")){
+        } else if (user_command.equals("run")){
+            schedule_prep();
+
+            System.out.println("Select a scheduling algorithm: [round table] [multi level]");
+            String schedule_algo = key_in.nextLine();
+
+            if (schedule_algo.equals("round table")){
+                System.out.println("\n\nRunning processes with round table algorithm");
+                dispatcher.run_round_table(roundtable_q, waiting_q, cpu, 50);
+                p_table.print_process_table();
+                print_finish();
+            } else if (schedule_algo.equals("multi level")) {
+                System.out.println("\n\nRunning processes with round table algorithm");
+                dispatcher.run_multi_level(fast_q, mid_q, slow_q, waiting_q, cpu, 50);
+                p_table.print_process_table();
+                print_finish();
+            }
+
+            return 0;
+        }else if (user_command.equals("exit")){
 
             System.out.println("Quitting....");
            
@@ -119,25 +163,13 @@ public class OS {
         } else {
             System.out.println("Invalid command.");
 
-            key_in.close();
-
             return 0;
         }
     }
 
-
-
     public static void main(String[] args) {
         init_os();
         run_os();
-
-        //System.out.println(templates.length);
-        // update_process_state(2, Enums.ProcessState.RUN);
-        //p_table.print_process_table();
-
-
-
-
 
     }
 }

@@ -1,5 +1,4 @@
 300
-OUT
 I/O
 I/O
 I/O
