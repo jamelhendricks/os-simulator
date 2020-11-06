@@ -68,7 +68,6 @@ public class Process {
             } else if (next_instruction.equals("<CRITICAL>")){
                 next_instruction = file_in.nextLine(); // skip to the actual instruction, not <CRITICAL>
                 Scanner read_line = new Scanner(next_instruction);
-                System.out.println("critical section actual code: " + next_instruction);
                 read_line.next(); // skip the nex token (calculate)
                 int temp_cycles = read_line.nextInt();
 
@@ -124,7 +123,6 @@ public class Process {
             } else if (next_instruction.equals("<CRITICAL>")){
                 next_instruction = file_in.nextLine(); // skip to the actual instruction, not <CRITICAL>
                 Scanner read_line = new Scanner(next_instruction);
-                System.out.println("critical section actual code: " + next_instruction);
                 read_line.next(); // skip the nex token (calculate)
                 int temp_cycles = read_line.nextInt();
 

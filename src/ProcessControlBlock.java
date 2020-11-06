@@ -102,7 +102,7 @@ public class ProcessControlBlock {
         System.out.println("Memory Requirement: " + memory_requirement);
         System.out.println("Current instruction: " + this.current_instruction);
         System.out.println("Cycles ran on current instruction: " + this.program_counter[1]);
-        System.out.println("Child Process?: " + child_process_exists());
+        System.out.println("Has a child Process?: " + child_process_exists());
         System.out.println("--------------------");
     }
 

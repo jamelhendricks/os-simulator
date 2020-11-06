@@ -156,22 +156,68 @@ public class Dispatcher {
     }
 
     // terminate head process on @param queue
-    public static void terminate_process(Queue<ProcessControlBlock> generic_q){
+    public static int terminate_process(Queue<ProcessControlBlock> generic_q){
+        // if (generic_q.size() == 0){
+        //     return -1;
+        // }
+
         ProcessControlBlock head = generic_q.remove();
         head.set_state(Enums.ProcessState.EXIT);
+
+        if (head.child_process_exists()){
+            // find the child pcb and remove it,
+            // return the queue
+            return head.get_child_PID();
+
+        }
+        return -1;
     }
+
+    // searches this queue for a pcb with a matching pid and removes it
+    public static Queue<ProcessControlBlock> search_and_terminate(Queue<ProcessControlBlock> generic_q, int pid){
+            // if (generic_q.size() == 0){
+            //     return generic_q;
+            // }
+
+            for (int i = 0; i < generic_q.size(); i++){
+                ProcessControlBlock test = generic_q.remove(); // get the next item in queue
+                if (test.get_pid() == pid){
+                    test.set_state(Enums.ProcessState.EXIT);
+                    return generic_q; // stop removing here and return the modified queue
+                } else {
+                    generic_q.add(test); // add the test pcb to the back and keep iterating
+                }
+            }
+
+        return generic_q;
+    }
+
+
 
     // run all processes in @param queues using round table algorithm
     public static boolean run_round_table(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> waiting_q, CPU cpu, int time_t){
         int operator;
         while ( running_q.size() > 0 || waiting_q.size() > 0 ){
 
+            System.out.println("Running q: " + running_q.size());
+            System.out.println("Waiting q: " + waiting_q.size());
+            System.out.println("Permits: " + access.availablePermits());
+
             if(running_q.size() > 0){
                 operator = check_runnable_instruction(running_q.peek());
                 if(operator == 1){
                     wait_running_head(running_q, waiting_q);
                 } else if(operator == -1){
-                    terminate_process(running_q);
+
+                    // @child_pid = PID of child process || -1 if no child
+                    int child_pid = terminate_process(running_q);
+                    if (child_pid != -1){
+
+                        // search the other queues for the child and terminate it
+                        running_q = search_and_terminate(running_q, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+
+                    }
                 } else if(operator == 9){
                     // we have encountered / are in a critical section instruction
                     if (access.availablePermits() == 1){
@@ -179,7 +225,7 @@ public class Dispatcher {
                             access.acquire();
                             System.out.println("\n\njust called acquire!");
                         } catch (InterruptedException e){
-                            System.out.println("Tried to acquire a permite when there was none!");
+                            System.out.println("Tried to acquire a permit when there was none!");
                         }
                     }
                 }
@@ -190,7 +236,13 @@ public class Dispatcher {
                 if(operator == 1){
                     ready_waiting_head(running_q, waiting_q);
                 } else if(operator == -1){
-                    terminate_process(waiting_q);
+                    // @child_pid = PID of child process || -1 if no child
+                    int child_pid = terminate_process(waiting_q);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                        running_q = search_and_terminate(running_q, child_pid);
+                    }
                 }
             }
 
@@ -245,12 +297,26 @@ public class Dispatcher {
 
         while ( fast.size() > 0 || mid.size() > 0 || slow.size() > 0 || waiting_q.size() > 0){
 
+            System.out.println("Fast q: " + fast.size());
+            System.out.println("Mid q: " + mid.size());
+            System.out.println("Slow q: " + slow.size());
+            System.out.println("Waiting q: " + waiting_q.size());
+            System.out.println("Permits: " + access.availablePermits());
+
             if (fast.size() > 0){
                 operator = check_runnable_instruction(fast.peek());
                 if(operator == 1){
                     wait_running_head(fast, waiting_q);
                 } else if(operator == -1){
-                    terminate_process(fast);
+                    
+                    int child_pid = terminate_process(fast);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        fast = search_and_terminate(fast, child_pid);
+                        mid = search_and_terminate(mid, child_pid);
+                        slow = search_and_terminate(slow, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                    }
                 } else if(operator == 9){
                     // we have encountered / are in a critical section instruction
                     if (access.availablePermits() == 1){
@@ -270,7 +336,14 @@ public class Dispatcher {
                 if(operator == 1){
                     wait_running_head(mid, waiting_q);
                 } else if(operator == -1){
-                    terminate_process(mid);
+                    int child_pid = terminate_process(mid);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        fast = search_and_terminate(fast, child_pid);
+                        mid = search_and_terminate(mid, child_pid);
+                        slow = search_and_terminate(slow, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                    }
                 } else if(operator == 9){
                     // we have encountered / are in a critical section instruction
                     if (access.availablePermits() == 1){
@@ -290,7 +363,14 @@ public class Dispatcher {
                 if(operator == 1){
                     wait_running_head(slow, waiting_q);
                 } else if(operator == -1){
-                    terminate_process(slow);
+                    int child_pid = terminate_process(slow);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        fast = search_and_terminate(fast, child_pid);
+                        mid = search_and_terminate(mid, child_pid);
+                        slow = search_and_terminate(slow, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                    }
                 } else if(operator == 9){
                     // we have encountered / are in a critical section instruction
                     if (access.availablePermits() == 1){
@@ -310,7 +390,14 @@ public class Dispatcher {
                 if(operator == 1){
                     ready_waiting_head(fast, waiting_q);
                 } else if(operator == -1){
-                    terminate_process(waiting_q);
+                    int child_pid = terminate_process(waiting_q);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        fast = search_and_terminate(fast, child_pid);
+                        mid = search_and_terminate(mid, child_pid);
+                        slow = search_and_terminate(slow, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                    }
                 }
             }
 
@@ -364,6 +451,26 @@ public class Dispatcher {
                 System.out.println("\n\n");
             }
         }
+
+
+        System.out.println("Operation Summary: ");
+        if(fast.size() > 0){ 
+            fast.peek().print_pcb();
+        }
+
+        if(mid.size() > 0){ 
+            mid.peek().print_pcb();
+        }
+
+        if(slow.size() > 0){ 
+            slow.peek().print_pcb();
+        }
+
+        if(waiting_q.size() > 0){ 
+            waiting_q.peek().print_pcb();
+        }
+
+        System.out.println("\n\n");
         return true;
     }
 

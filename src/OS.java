@@ -47,6 +47,10 @@ public class OS {
         ProcessControlBlock pcb = new ProcessControlBlock(p, pid_index, Enums.ProcessPriority.MEDIUM); // default as MEDIUM, change later
         pcb.set_memory_requirement(p.get_memory_requirement());
         int skip_to = p.generate_code();
+
+        pid_index = pid_index + 1;
+        p_table.add_process(pcb);
+
         ProcessControlBlock child = null;
         if (skip_to != -1){
             // create a child process
@@ -57,8 +61,6 @@ public class OS {
             // do nothing, no child process
         }
 
-        pid_index = pid_index + 1;
-        p_table.add_process(pcb);
     }
 
     public static void print_finish(){
@@ -97,9 +99,15 @@ public class OS {
         System.out.println("==============================================================");
         System.out.println("| Welcome to Simulated OS (Java)                             |");
         System.out.println("| Author: Jamel Hendricks                                    |");
-        System.out.println("| Stage: [Phase 4]                                           |");
+        System.out.println("| Stage: [Phase 3 & 4 Combined Update]                       |");
         System.out.println("| UPDATES:                                                   |");
+        System.out.println("|      + processes are able to enter uninterruptable         |");
+        System.out.println("|        critical sections (round table / multi level queue) |");
+        System.out.println("|      + critical instructions are constantly run on CPU,    |");
+        System.out.println("|        process queues / PCB states locked by semaphores    |");
         System.out.println("|      + processes are able to create child processes        |");
+        System.out.println("|      + processes feature cascading termination - child     |");
+        System.out.println("|        processes will be terminated on parent termination  |");
         System.out.println("==============================================================");
         System.out.println("Ready for new command: [start process] [print process table] [exit]");
 
