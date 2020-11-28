@@ -27,14 +27,23 @@ public class CPU {
 
     public CPU(){
         this.systemClock = new RunClock();
-        this.systemClock.run();
+
+        try {
+            this.systemClock.run();
+        } catch (Exception e){
+            System.out.println("CPU clock failed!");
+            System.out.println("\n\n\n");
+            e.printStackTrace();
+            System.exit(0);
+        }
     }
 
     public boolean callback_after_cycles(long cycles_to_run){
         final long startTime = systemClock.currentTime();
-        while (systemClock.elapsed(startTime) != cycles_to_run){
+        while (systemClock.elapsed(startTime) < cycles_to_run){
             // do nothing, essentially pausing CPU while this runs (simulating running the process for this many cycles)
         }
+
 
         return true; // return after @param cycles are done running
     }
