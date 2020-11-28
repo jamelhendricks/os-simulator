@@ -11,7 +11,26 @@ public class Dispatcher {
     private static MainMemory ram = null;
 
     // confirm the next instruction on @param PCB is a CPU runnable instruction
-    public static int check_runnable_instruction(ProcessControlBlock pcb){
+    // public static int check_runnable_instruction(ProcessControlBlock pcb){
+    //     String instruction = pcb.get_current_instruction();
+    //     Scanner scan = new Scanner(instruction);
+    //     String indicator = scan.next();
+
+    //     if(indicator.equals("R")){
+    //         scan.close();
+    //         return 0;
+    //     } else if(indicator.equals("DONE")){
+    //         return -1;
+    //     } else if(indicator.equals("C")){
+    //         scan.close();
+    //         return 9;
+    //     } else {
+    //         scan.close();
+    //         return 1;
+    //     }
+    // }
+
+    public static int check_next_instruction(ProcessControlBlock pcb){
         String instruction = pcb.get_current_instruction();
         Scanner scan = new Scanner(instruction);
         String indicator = scan.next();
@@ -19,43 +38,38 @@ public class Dispatcher {
         if(indicator.equals("R")){
             scan.close();
             return 0;
-        } else if(indicator.equals("DONE")){
-            return -1;
-        } else if(indicator.equals("C")){
-            scan.close();
-            return 9;
-        } else {
-            scan.close();
-            return 1;
-        }
-    }
-
-    // confirm the next instruction on @param PCB is a I/O waitable instruction
-    public static int check_waitable_instruction(ProcessControlBlock pcb){
-        String instruction = pcb.get_current_instruction();
-        Scanner scan = new Scanner(instruction);
-        String indicator = scan.next();
-
-        if(indicator.equals("W")){
-            scan.close();
-            return 0;
         }else if(indicator.equals("DONE")){
             scan.close();
             return -1;
-        } else {
+        } else if(indicator.equals("K")) {
             scan.close();
             return 1;
+        } else if (indicator.equals("S")){
+            scan.close();
+            return 2;
+        } else if (indicator.equals("M")){
+            scan.close();
+            return 3;
+        } else if (indicator.equals("W")){
+            scan.close();
+            return 4;
+        } else if (indicator.equals("C")){
+            return 9;
+        } else {
+            System.out.println("Error reading instruction. Indicator: " + indicator);
+            System.exit(0);
+            return 111;
         }
     }
 
     // move the PCB on the ready queue to the waiting queue
-    public static void wait_running_head(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> waiting_q){
+    public static void wait_running_head(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> io_q){
         ProcessControlBlock head = running_q.remove();
         Process p = head.get_process();
 
         head.set_state(Enums.ProcessState.WAIT);
-        waiting_q.add(head);
-    }    
+        io_q.add(head);
+    }
     
     // move the PCB on the waiting queue to the ready queue
     public static void ready_waiting_head(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> waiting_q, MainMemory ram){
@@ -143,7 +157,7 @@ public class Dispatcher {
         if(first_q.size() > 0){
             update_head_process(first_q, cycles);
 
-            if( check_runnable_instruction(first_q.peek()) == 0){
+            if( check_next_instruction(first_q.peek()) == 0){
                 if(second_q != null){
                     ProcessControlBlock head = first_q.remove();
                     second_q.add(head);
@@ -205,16 +219,28 @@ public class Dispatcher {
 
 
     // run all processes in @param queues using round table algorithm
-    public static boolean run_round_table(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> waiting_q, CPU cpu, int time_t){
+    public static boolean run_round_table(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> waiting_q, Queue<ProcessControlBlock> keyboard_q, Queue<ProcessControlBlock> speaker_q, Queue<ProcessControlBlock> monitor_q, CPU cpu, int time_t){
         int operator;
-        while ( running_q.size() > 0 || waiting_q.size() > 0 ){
+        while (  running_q.size() > 0 || waiting_q.size() > 0 || keyboard_q.size() > 0 || speaker_q.size() > 0 || monitor_q.size() > 0){
             System.out.println("Running q: " + running_q.size());
             System.out.println("Waiting q: " + waiting_q.size());
+            System.out.println("Keybaord q: " + keyboard_q.size());
+            System.out.println("Speaker q: " + speaker_q.size());
+            System.out.println("Monitor q: " + monitor_q.size());
             System.out.println("Permits: " + access.availablePermits());
 
             if(running_q.size() > 0){
-                operator = check_runnable_instruction(running_q.peek());
-                if(operator == 1){
+                operator = check_next_instruction(running_q.peek());
+                if (operator == 0){
+                    // ready_waiting_head(running_q, running_q, ram);
+                    // do nothing already in correct queue
+                }else if(operator == 1){
+                    wait_running_head(running_q, keyboard_q);
+                }else if(operator == 2){
+                    wait_running_head(running_q, speaker_q);
+                }else if(operator == 3){
+                    wait_running_head(running_q, monitor_q);
+                }else if(operator == 4){
                     wait_running_head(running_q, waiting_q);
                 } else if(operator == -1){
 
@@ -225,6 +251,9 @@ public class Dispatcher {
                         // search the other queues for the child and terminate it
                         running_q = search_and_terminate(running_q, child_pid);
                         waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
 
                     }
                 } else if(operator == 9){
@@ -241,17 +270,109 @@ public class Dispatcher {
             }
 
             if(waiting_q.size() > 0 ){
-                operator = check_waitable_instruction(waiting_q.peek());
-                if(operator == 1){
+                operator = check_next_instruction(waiting_q.peek());
+                if (operator == 0){
                     ready_waiting_head(running_q, waiting_q, ram);
-                    System.out.println("Just called ready");
+                }else if(operator == 1){
+                    wait_running_head(waiting_q, keyboard_q);
+                }else if(operator == 2){
+                    wait_running_head(waiting_q, speaker_q);
+                }else if(operator == 3){
+                    wait_running_head(waiting_q, monitor_q);
+                }else if(operator == 4){
+                    // wait_running_head(waiting_q, waiting_q);
+                    // do nothing already in correct queue
                 } else if(operator == -1){
                     // @child_pid = PID of child process || -1 if no child
                     int child_pid = terminate_process(waiting_q);
                     if (child_pid != -1){
                         // search the other queues for the child and terminate it
-                        waiting_q = search_and_terminate(waiting_q, child_pid);
                         running_q = search_and_terminate(running_q, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
+                    }
+                }
+            }
+
+            if(keyboard_q.size() > 0 ){
+                operator = check_next_instruction(keyboard_q.peek());
+                if (operator == 0){
+                    ready_waiting_head(running_q, keyboard_q, ram);
+                }else if(operator == 1){
+                    // wait_running_head(keyboard_q, keyboard_q);
+                    // do nothing already in correct queue
+                }else if(operator == 2){
+                    wait_running_head(keyboard_q, speaker_q);
+                }else if(operator == 3){
+                    wait_running_head(keyboard_q, monitor_q);
+                }else if(operator == 4){
+                    wait_running_head(keyboard_q, waiting_q);
+                } else if(operator == -1){
+                    // @child_pid = PID of child process || -1 if no child
+                    int child_pid = terminate_process(keyboard_q);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        running_q = search_and_terminate(running_q, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
+                    }
+                }
+            }
+
+            if(speaker_q.size() > 0 ){
+                operator = check_next_instruction(speaker_q.peek());
+                if (operator == 0){
+                    ready_waiting_head(running_q, speaker_q, ram);
+                }else if(operator == 1){
+                    wait_running_head(speaker_q, keyboard_q);
+                }else if(operator == 2){
+                    // wait_running_head(speaker_q, speaker_q);
+                    // do nothing already in correct queue
+                }else if(operator == 3){
+                    wait_running_head(speaker_q, monitor_q);
+                }else if(operator == 4){
+                    wait_running_head(speaker_q, waiting_q);
+                } else if(operator == -1){
+                    // @child_pid = PID of child process || -1 if no child
+                    int child_pid = terminate_process(speaker_q);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        running_q = search_and_terminate(running_q, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
+                    }
+                }
+            }
+
+            if(monitor_q.size() > 0 ){
+                operator = check_next_instruction(monitor_q.peek());
+                if (operator == 0){
+                    ready_waiting_head(running_q, monitor_q, ram);
+                }else if(operator == 1){
+                    wait_running_head(monitor_q, keyboard_q);
+                }else if(operator == 2){
+                    wait_running_head(monitor_q, speaker_q);
+                }else if(operator == 3){
+                    // wait_running_head(monitor_q, monitor_q);
+                    // do nothing already in correct queue
+                }else if(operator == 4){
+                    wait_running_head(monitor_q, waiting_q);
+                } else if(operator == -1){
+                    // @child_pid = PID of child process || -1 if no child
+                    int child_pid = terminate_process(monitor_q);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        running_q = search_and_terminate(running_q, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
                     }
                 }
             }
@@ -275,6 +396,9 @@ public class Dispatcher {
 
                     exercise_q_round(running_q, time_t);
                     exercise_q_round(waiting_q, time_t);
+                    exercise_q_round(keyboard_q, time_t);
+                    exercise_q_round(speaker_q, time_t);
+                    exercise_q_round(monitor_q, time_t);
                 } else {
                     System.out.println("Waiting for critical section to complete!");
                     
@@ -321,21 +445,30 @@ public class Dispatcher {
     }
     
     // run all processes in @param queues using multi level queue algorithm
-    public static boolean run_multi_level(Queue<ProcessControlBlock> fast, Queue<ProcessControlBlock> mid, Queue<ProcessControlBlock> slow, Queue<ProcessControlBlock> waiting_q, CPU cpu, int time_t){
+    public static boolean run_multi_level(Queue<ProcessControlBlock> fast, Queue<ProcessControlBlock> mid, Queue<ProcessControlBlock> slow, Queue<ProcessControlBlock> waiting_q, Queue<ProcessControlBlock> keyboard_q, Queue<ProcessControlBlock> speaker_q, Queue<ProcessControlBlock> monitor_q, CPU cpu, int time_t){
         int operator;
         Queue<ProcessControlBlock> critical_q = null; // holder for the queue that contains the crit section process
 
-        while ( fast.size() > 0 || mid.size() > 0 || slow.size() > 0 || waiting_q.size() > 0){
+        while ( fast.size() > 0 || mid.size() > 0 || slow.size() > 0 || waiting_q.size() > 0 || keyboard_q.size() > 0 || speaker_q.size() > 0 || monitor_q.size() > 0){
 
             System.out.println("Fast q: " + fast.size());
             System.out.println("Mid q: " + mid.size());
             System.out.println("Slow q: " + slow.size());
             System.out.println("Waiting q: " + waiting_q.size());
+            System.out.println("Keybaord q: " + keyboard_q.size());
+            System.out.println("Speaker q: " + speaker_q.size());
+            System.out.println("Monitor q: " + monitor_q.size());
             System.out.println("Permits: " + access.availablePermits());
 
             if (fast.size() > 0){
-                operator = check_runnable_instruction(fast.peek());
+                operator = check_next_instruction(fast.peek());
                 if(operator == 1){
+                    wait_running_head(fast, keyboard_q);
+                }else if(operator == 2){
+                    wait_running_head(fast, speaker_q);
+                }else if(operator == 3){
+                    wait_running_head(fast, monitor_q);
+                } else if(operator == 4){
                     wait_running_head(fast, waiting_q);
                 } else if(operator == -1){
                     
@@ -346,6 +479,9 @@ public class Dispatcher {
                         mid = search_and_terminate(mid, child_pid);
                         slow = search_and_terminate(slow, child_pid);
                         waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
                     }
                 } else if(operator == 9){
                     // we have encountered / are in a critical section instruction
@@ -362,8 +498,14 @@ public class Dispatcher {
             }
 
             if (mid.size() > 0){
-                operator = check_runnable_instruction(mid.peek());
+                operator = check_next_instruction(mid.peek());
                 if(operator == 1){
+                    wait_running_head(mid, keyboard_q);
+                }else if(operator == 2){
+                    wait_running_head(mid, speaker_q);
+                }else if(operator == 3){
+                    wait_running_head(mid, monitor_q);
+                } else if(operator == 4){
                     wait_running_head(mid, waiting_q);
                 } else if(operator == -1){
                     int child_pid = terminate_process(mid);
@@ -373,6 +515,9 @@ public class Dispatcher {
                         mid = search_and_terminate(mid, child_pid);
                         slow = search_and_terminate(slow, child_pid);
                         waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
                     }
                 } else if(operator == 9){
                     // we have encountered / are in a critical section instruction
@@ -389,8 +534,14 @@ public class Dispatcher {
             }
 
             if (slow.size() > 0){
-                operator = check_runnable_instruction(slow.peek());
+                operator = check_next_instruction(slow.peek());
                 if(operator == 1){
+                    wait_running_head(slow, keyboard_q);
+                }else if(operator == 2){
+                    wait_running_head(slow, speaker_q);
+                }else if(operator == 3){
+                    wait_running_head(slow, monitor_q);
+                } else if(operator == 4){
                     wait_running_head(slow, waiting_q);
                 } else if(operator == -1){
                     int child_pid = terminate_process(slow);
@@ -400,6 +551,9 @@ public class Dispatcher {
                         mid = search_and_terminate(mid, child_pid);
                         slow = search_and_terminate(slow, child_pid);
                         waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
                     }
                 } else if(operator == 9){
                     // we have encountered / are in a critical section instruction
@@ -416,9 +570,16 @@ public class Dispatcher {
             }
 
             if(waiting_q.size() > 0 ){
-                operator = check_waitable_instruction(waiting_q.peek());
+                operator = check_next_instruction(waiting_q.peek());
                 if(operator == 1){
-                    ready_waiting_head(fast, waiting_q, ram);
+                    wait_running_head(waiting_q, keyboard_q);
+                }else if(operator == 2){
+                    wait_running_head(waiting_q, speaker_q);
+                }else if(operator == 3){
+                    wait_running_head(waiting_q, monitor_q);
+                } else if(operator == 4){
+                    // wait_running_head(waiting_q, waiting_q);
+                    // do nothing, already in the correct queue
                 } else if(operator == -1){
                     int child_pid = terminate_process(waiting_q);
                     if (child_pid != -1){
@@ -427,7 +588,97 @@ public class Dispatcher {
                         mid = search_and_terminate(mid, child_pid);
                         slow = search_and_terminate(slow, child_pid);
                         waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
                     }
+                } else if(operator == 0){
+                    ready_waiting_head(fast, waiting_q, ram);
+                }
+            }
+
+            if(keyboard_q.size() > 0 ){
+                operator = check_next_instruction(keyboard_q.peek());
+                if(operator == 1){
+                    // wait_running_head(keyboard_q, keyboard_q);
+                    // in the right queue already
+                }else if(operator == 2){
+                    wait_running_head(keyboard_q, speaker_q);
+                }else if(operator == 3){
+                    wait_running_head(keyboard_q, monitor_q);
+                } else if (operator == 4){
+                    wait_running_head(keyboard_q, waiting_q);
+                } else if(operator == -1){
+                    int child_pid = terminate_process(keyboard_q);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        fast = search_and_terminate(fast, child_pid);
+                        mid = search_and_terminate(mid, child_pid);
+                        slow = search_and_terminate(slow, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
+
+                    }
+                } else if(operator == 0){
+                    ready_waiting_head(fast, keyboard_q, ram);
+                }
+            }
+
+            if(speaker_q.size() > 0 ){
+                operator = check_next_instruction(speaker_q.peek());
+                if(operator == 1){
+                    wait_running_head(speaker_q, keyboard_q);
+                }else if(operator == 2){
+                    // wait_running_head(speaker_q, speaker_q);
+                    // nothing in the right queue already
+                }else if(operator == 3){
+                    wait_running_head(speaker_q, monitor_q);
+                } else if (operator == 4){
+                    wait_running_head(speaker_q, waiting_q);
+                } else if(operator == -1){
+                    int child_pid = terminate_process(speaker_q);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        fast = search_and_terminate(fast, child_pid);
+                        mid = search_and_terminate(mid, child_pid);
+                        slow = search_and_terminate(slow, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
+                    }
+                } else if(operator == 0){
+                    ready_waiting_head(fast, speaker_q, ram);
+                }
+            }
+
+            if(monitor_q.size() > 0 ){
+                operator = check_next_instruction(monitor_q.peek());
+                if(operator == 1){
+                    wait_running_head(monitor_q, keyboard_q);
+                }else if(operator == 2){
+                    wait_running_head(monitor_q, speaker_q);
+                }else if(operator == 3){
+                    // wait_running_head(monitor_q, monitor_q);
+                    // nothing, in the right queue already
+                } else if(operator ==4){
+                    wait_running_head(monitor_q, waiting_q);
+                } else if(operator == -1){
+                    int child_pid = terminate_process(monitor_q);
+                    if (child_pid != -1){
+                        // search the other queues for the child and terminate it
+                        fast = search_and_terminate(fast, child_pid);
+                        mid = search_and_terminate(mid, child_pid);
+                        slow = search_and_terminate(slow, child_pid);
+                        waiting_q = search_and_terminate(waiting_q, child_pid);
+                        keyboard_q = search_and_terminate(keyboard_q, child_pid);
+                        speaker_q = search_and_terminate(speaker_q, child_pid);
+                        monitor_q = search_and_terminate(monitor_q, child_pid);
+                    }
+                } else if(operator == 0){
+                    ready_waiting_head(fast, monitor_q, ram);
                 }
             }
 
@@ -466,6 +717,9 @@ public class Dispatcher {
                     exercise_q_multi(slow, null, time_t);
 
                     exercise_q_round(waiting_q, time_t);
+                    exercise_q_round(keyboard_q, time_t);
+                    exercise_q_round(speaker_q, time_t);
+                    exercise_q_round(monitor_q, time_t);
                 } else {                    
                     boolean complete_critical = exercise_q_multi_CRITICAL(critical_q, time_t);
                     // release the semaphore lock if the critical instruction was completed
@@ -492,6 +746,16 @@ public class Dispatcher {
 
                 if(waiting_q.size() > 0){ 
                     waiting_q.peek().print_pcb();
+                }
+
+                if(keyboard_q.size() > 0){ 
+                    keyboard_q.peek().print_pcb();
+                }
+                if(speaker_q.size() > 0){ 
+                    speaker_q.peek().print_pcb();
+                }
+                if(monitor_q.size() > 0){ 
+                    monitor_q.peek().print_pcb();
                 }
 
                 System.out.println("Memory: " + (ram.total_memory - ram.remainingMemory) + " / " + ram.total_memory);
