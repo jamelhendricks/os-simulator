@@ -7,6 +7,8 @@ import java.lang.Thread;
 public class Dispatcher {
 
     private static Semaphore access = new Semaphore(1);
+    private static CPUCache cpuCache = null;
+    private static MainMemory ram = null;
 
     // confirm the next instruction on @param PCB is a CPU runnable instruction
     public static int check_runnable_instruction(ProcessControlBlock pcb){
@@ -49,15 +51,23 @@ public class Dispatcher {
     // move the PCB on the ready queue to the waiting queue
     public static void wait_running_head(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> waiting_q){
         ProcessControlBlock head = running_q.remove();
+        Process p = head.get_process();
+
         head.set_state(Enums.ProcessState.WAIT);
         waiting_q.add(head);
     }    
     
     // move the PCB on the waiting queue to the ready queue
-    public static void ready_waiting_head(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> waiting_q){
+    public static void ready_waiting_head(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> waiting_q, MainMemory ram){
         ProcessControlBlock head = waiting_q.remove();
+        Process p = head.get_process();
+
         head.set_state(Enums.ProcessState.RUN);
         running_q.add(head);
+
+        if (!ram.checkInMemory(p)){
+            ram.addProcess(p);
+        }
     }
 
     // check how many cyles the current instruction requires on @param PCB
@@ -198,7 +208,6 @@ public class Dispatcher {
     public static boolean run_round_table(Queue<ProcessControlBlock> running_q, Queue<ProcessControlBlock> waiting_q, CPU cpu, int time_t){
         int operator;
         while ( running_q.size() > 0 || waiting_q.size() > 0 ){
-
             System.out.println("Running q: " + running_q.size());
             System.out.println("Waiting q: " + waiting_q.size());
             System.out.println("Permits: " + access.availablePermits());
@@ -234,7 +243,8 @@ public class Dispatcher {
             if(waiting_q.size() > 0 ){
                 operator = check_waitable_instruction(waiting_q.peek());
                 if(operator == 1){
-                    ready_waiting_head(running_q, waiting_q);
+                    ready_waiting_head(running_q, waiting_q, ram);
+                    System.out.println("Just called ready");
                 } else if(operator == -1){
                     // @child_pid = PID of child process || -1 if no child
                     int child_pid = terminate_process(waiting_q);
@@ -245,7 +255,6 @@ public class Dispatcher {
                     }
                 }
             }
-
 
             if(cpu.callback_after_cycles(time_t)){
                 System.out.println("\n\n");
@@ -259,10 +268,22 @@ public class Dispatcher {
                 //     a) update the PCB -> done in the CRITICAL exercise method
                 //     b) shift to next PCB
                 if (access.availablePermits() == 1){
+
+                    if (running_q.size() > 0){
+                        cpuCache.addProcess(running_q.peek().get_process());
+                    }
+
                     exercise_q_round(running_q, time_t);
                     exercise_q_round(waiting_q, time_t);
                 } else {
+                    System.out.println("Waiting for critical section to complete!");
+                    
+                    if (running_q.size() > 0){
+                        cpuCache.addProcess(running_q.peek().get_process());
+                    }
                     boolean complete_critical = exercise_q_round_CRITICAL(running_q, time_t);
+
+                    System.out.println("Critical section exercised!");
 
                     // release the semaphore lock if the critical instruction was completed
                     if(complete_critical){
@@ -282,11 +303,20 @@ public class Dispatcher {
                     waiting_q.peek().print_pcb();
                 }
 
+                if((running_q.size() == 0) || (waiting_q.size() == 0)) {
+                    System.out.println("One of the queues is empty!");
+                }
+
+                System.out.println("Memory: " + (ram.total_memory - ram.remainingMemory) + " / " + ram.total_memory);
+                System.out.println("CPU Cache: " + CPUCache.total_cache + " / " + CPUCache.MAX_CACHE_NUM);
+
                 System.out.println("\n\n");
             }
 
         }
 
+        System.out.println("Exited running processes!");
+        
         return true;
     }
     
@@ -388,7 +418,7 @@ public class Dispatcher {
             if(waiting_q.size() > 0 ){
                 operator = check_waitable_instruction(waiting_q.peek());
                 if(operator == 1){
-                    ready_waiting_head(fast, waiting_q);
+                    ready_waiting_head(fast, waiting_q, ram);
                 } else if(operator == -1){
                     int child_pid = terminate_process(waiting_q);
                     if (child_pid != -1){
@@ -416,9 +446,25 @@ public class Dispatcher {
                 //     a) update the PCB -> done in the CRITICAL exercise method
                 //     b) shift to next PCB
                 if (access.availablePermits() == 1){
+
+                    if (fast.size() > 0){
+                        cpuCache.addProcess(fast.peek().get_process());
+                    }
+
                     exercise_q_multi(fast, mid, time_t);
+
+                    if (mid.size() > 0){
+                        cpuCache.addProcess(mid.peek().get_process());
+                    }
+
                     exercise_q_multi(mid, slow, time_t);
+
+
+                    if (slow.size() > 0){
+                        cpuCache.addProcess(slow.peek().get_process());
+                    }
                     exercise_q_multi(slow, null, time_t);
+
                     exercise_q_round(waiting_q, time_t);
                 } else {                    
                     boolean complete_critical = exercise_q_multi_CRITICAL(critical_q, time_t);
@@ -448,33 +494,23 @@ public class Dispatcher {
                     waiting_q.peek().print_pcb();
                 }
 
+                System.out.println("Memory: " + (ram.total_memory - ram.remainingMemory) + " / " + ram.total_memory);
+                 System.out.println("CPU Cache: " + CPUCache.total_cache + " / " + CPUCache.MAX_CACHE_NUM);
+
+
                 System.out.println("\n\n");
-            }
+            }        
         }
 
-
-        System.out.println("Operation Summary: ");
-        if(fast.size() > 0){ 
-            fast.peek().print_pcb();
-        }
-
-        if(mid.size() > 0){ 
-            mid.peek().print_pcb();
-        }
-
-        if(slow.size() > 0){ 
-            slow.peek().print_pcb();
-        }
-
-        if(waiting_q.size() > 0){ 
-            waiting_q.peek().print_pcb();
-        }
-
-        System.out.println("\n\n");
+        System.out.println("Exited running processes!");
+        
         return true;
     }
 
-    public Dispatcher() {}
+    public Dispatcher(CPUCache c, MainMemory m) {
+        cpuCache = c;
+        ram = m;
+    }
 
 
 }

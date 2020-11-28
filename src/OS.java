@@ -21,6 +21,8 @@ public class OS {
     public static Queue<ProcessControlBlock> slow_q = new LinkedList<>();
 
     public static CPU cpu = null;
+    public static CPUCache cpuCache = null;
+    public static MainMemory ram = null;
     public static Dispatcher dispatcher = null;
 
     public static void schedule_prep(){
@@ -93,21 +95,21 @@ public class OS {
         Scanner key_in = new Scanner(System.in);
 
         cpu = new CPU(); // instantiate CPU, starting CPU clock thread
-        dispatcher = new Dispatcher(); // instantiate dispatcher
+        cpuCache = new CPUCache(); // instantiate CPU cache for running processes
+        ram = new MainMemory(); // instantiate 4gb main memory
+        dispatcher = new Dispatcher(cpuCache, ram); // instantiate dispatcher
 
 
         System.out.println("==============================================================");
         System.out.println("| Welcome to Simulated OS (Java)                             |");
         System.out.println("| Author: Jamel Hendricks                                    |");
-        System.out.println("| Stage: [Phase 3 & 4 Combined Update]                       |");
+        System.out.println("| Stage: [Phase 5, 6, 7  Update]                             |");
         System.out.println("| UPDATES:                                                   |");
-        System.out.println("|      + processes are able to enter uninterruptable         |");
-        System.out.println("|        critical sections (round table / multi level queue) |");
-        System.out.println("|      + critical instructions are constantly run on CPU,    |");
-        System.out.println("|        process queues / PCB states locked by semaphores    |");
-        System.out.println("|      + processes are able to create child processes        |");
-        System.out.println("|      + processes feature cascading termination - child     |");
-        System.out.println("|        processes will be terminated on parent termination  |");
+        System.out.println("|      + multi level medium to slow queue transfer bug fix   |");
+        System.out.println("|      + multi level early exit bug fix                      |");
+        System.out.println("|      + cpu clock thread too fast for cycles bug fix        |");
+        System.out.println("|      + processes in ready state are stored in sim RAM      |");
+        System.out.println("|      + cpu engaged processes are loaded into cpu cache     |");
         System.out.println("==============================================================");
         System.out.println("Ready for new command: [start process] [print process table] [exit]");
 
@@ -130,6 +132,30 @@ public class OS {
             }
         }
 
+        // Process a1 = new Process("a", templates[0]);
+        // Process b2 = new Process("b", templates[1]);
+        // Process c3 = new Process("c", templates[2]);
+        // Process d4 = new Process("d", templates[3]);
+        // Process e5 = new Process("e", templates[4]);
+        // init_process(a1);
+        // init_process(b2);
+        // init_process(c3);
+        // init_process(d4);
+        // init_process(e5);
+
+        // schedule_prep();
+
+        // round table
+        // System.out.println("\n\nRunning processes with round table algorithm");
+        // dispatcher.run_round_table(roundtable_q, waiting_q, cpu, 50);
+        // p_table.print_process_table();
+        // print_finish();
+
+        // multi level
+        // System.out.println("\n\nRunning processes with round table algorithm");
+        // dispatcher.run_multi_level(fast_q, mid_q, slow_q, waiting_q, cpu, 50);
+        // p_table.print_process_table();
+        // print_finish();
     }
 
     // process command line OS input
