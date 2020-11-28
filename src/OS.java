@@ -14,6 +14,9 @@ public class OS {
     public static File[] templates = new File[6];
 
     public static Queue<ProcessControlBlock> waiting_q = new LinkedList<>();
+    public static Queue<ProcessControlBlock> keyboard_q = new LinkedList<>();
+    public static Queue<ProcessControlBlock> speaker_q = new LinkedList<>();
+    public static Queue<ProcessControlBlock> monitor_q = new LinkedList<>();
     public static Queue<ProcessControlBlock> roundtable_q = new LinkedList<>();
 
     public static Queue<ProcessControlBlock> fast_q = new LinkedList<>();
@@ -198,12 +201,12 @@ public class OS {
 
             if (schedule_algo.equals("round table")){
                 System.out.println("\n\nRunning processes with round table algorithm");
-                dispatcher.run_round_table(roundtable_q, waiting_q, cpu, 50);
+                dispatcher.run_round_table(roundtable_q, waiting_q, keyboard_q, speaker_q, monitor_q, cpu, 50);
                 p_table.print_process_table();
                 print_finish();
             } else if (schedule_algo.equals("multi level")) {
                 System.out.println("\n\nRunning processes with round table algorithm");
-                dispatcher.run_multi_level(fast_q, mid_q, slow_q, waiting_q, cpu, 50);
+                dispatcher.run_multi_level(fast_q, mid_q, slow_q, waiting_q, keyboard_q, speaker_q, monitor_q, cpu, 50);
                 p_table.print_process_table();
                 print_finish();
             }
