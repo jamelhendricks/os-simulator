@@ -36,6 +36,7 @@ public class OS {
     public static ProcessControlBlock init_child_process(){
         Process p = new Process("[Child Process]", templates[5]);
         ProcessControlBlock pcb = new ProcessControlBlock(p, pid_index, Enums.ProcessPriority.LOW); // default as LOW, change later
+        pcb.set_memory_requirement(p.get_memory_requirement());
         p.generate_code();
 
         pid_index = pid_index + 1;
