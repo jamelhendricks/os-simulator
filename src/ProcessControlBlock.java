@@ -7,6 +7,7 @@ public class ProcessControlBlock {
     private Enums.ProcessPriority priority;
     private Process process;
     private int memory_requirement;
+    private ProcessControlBlock child = null;
 
     /*
         index 0: process code line index 
@@ -15,22 +16,8 @@ public class ProcessControlBlock {
     private int[] program_counter = new int[2];
     private String current_instruction;
 
-    private int[] cpu_registers; // TO DO
+    private int[] cpu_registers;
 
-    // memory management information
-        // TO DO
-        
-
-    // accounting information
-        // TO DO: date objects?
-
-    //private int startTime;
-    //private int elapsedTime;
-    //private int finishTime;
-    //private int timeLimit;
-
-    // I/O status information
-        // TO DO
 
     
 
@@ -87,6 +74,26 @@ public class ProcessControlBlock {
         this.memory_requirement = m;
     }
 
+    public void set_child(ProcessControlBlock c){
+        this.child = c;
+    }
+
+    public boolean child_process_exists(){
+        if(this.child == null){
+            return false;
+        } else {
+            return true;
+        }
+    }
+
+    public int get_child_PID(){
+        return this.child.get_pid();
+    }
+
+    public void remove_child(){
+        this.child = null;
+    }
+
     public void print_pcb(){
         System.out.println("--------------------");
         System.out.println("PID: " + process_id);
@@ -95,6 +102,7 @@ public class ProcessControlBlock {
         System.out.println("Memory Requirement: " + memory_requirement);
         System.out.println("Current instruction: " + this.current_instruction);
         System.out.println("Cycles ran on current instruction: " + this.program_counter[1]);
+        System.out.println("Has a child Process?: " + child_process_exists());
         System.out.println("--------------------");
     }
 

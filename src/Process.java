@@ -34,7 +34,61 @@ public class Process {
         return memory_requirement;
     }
 
-    public void generate_code(){
+    public int generate_code(){
+        Scanner file_in;
+        try {
+            file_in = new Scanner(this.template);
+        } catch(FileNotFoundException e){
+            System.out.println("File not found. Could not generate program from template.");
+            System.exit(0);
+            return -1;
+        }
+
+        String next_instruction = "";
+        int next_cycles = 0;
+        memory_requirement = file_in.nextInt();
+        int num_skips = 0;
+
+        while (file_in.hasNextLine()){
+            next_instruction = file_in.nextLine();
+            num_skips = num_skips + 1;
+
+            if (next_instruction.equals("OUT")){
+                text_section.add("PRINTPCB");
+            } else if (next_instruction.contains("CALCULATE")){
+                Scanner read_line = new Scanner(next_instruction);
+                read_line.next(); // skip the next token (calculate)
+
+                int temp_cycles = read_line.nextInt();
+                text_section.add("R " + generate_calc(temp_cycles)); // R to signal ready queue
+
+                read_line.close();
+            } else if (next_instruction.equals("I/O")){
+                text_section.add("W " + generate_io()); // W to signal wait queue
+            } else if (next_instruction.equals("<CRITICAL>")){
+                next_instruction = file_in.nextLine(); // skip to the actual instruction, not <CRITICAL>
+                Scanner read_line = new Scanner(next_instruction);
+                read_line.next(); // skip the nex token (calculate)
+                int temp_cycles = read_line.nextInt();
+
+                text_section.add("C " + generate_critical(temp_cycles)); // C to signal critical section
+                read_line.close();
+
+            } else if (next_instruction.equals("</CRITICAL>")) {
+                // do nothing
+            } else if (next_instruction.equals("FORK")){
+                // do nothing, child process is created in init_process() > OS
+                return num_skips;
+            }
+        }
+
+        text_section.add("DONE");
+        file_in.close();
+
+        return -1;
+    }
+
+    public void generate_code_skip_to_line(int skip_to_this_line){
         Scanner file_in;
         try {
             file_in = new Scanner(this.template);
@@ -46,6 +100,10 @@ public class Process {
         String next_instruction = "";
         int next_cycles = 0;
         memory_requirement = file_in.nextInt();
+        
+        for (int i = 0; i < skip_to_this_line -1; i++){ // subtract one bc we will skip one line in the loop
+            next_instruction = file_in.nextLine();
+        }
 
         while (file_in.hasNextLine()){
             next_instruction = file_in.nextLine();
@@ -65,7 +123,6 @@ public class Process {
             } else if (next_instruction.equals("<CRITICAL>")){
                 next_instruction = file_in.nextLine(); // skip to the actual instruction, not <CRITICAL>
                 Scanner read_line = new Scanner(next_instruction);
-                System.out.println("critical section actual code: " + next_instruction);
                 read_line.next(); // skip the nex token (calculate)
                 int temp_cycles = read_line.nextInt();
 
@@ -74,6 +131,8 @@ public class Process {
 
             } else if (next_instruction.equals("</CRITICAL>")) {
                 // do nothing
+            } else if (next_instruction.equals("FORK")){
+                // do nothing, child process is created in init_process() > OS
             }
         }
 
@@ -120,14 +179,6 @@ public class Process {
 
         generate_code(); // create text section from template
     }
-
-    // public static void main(String[] args){
-    //     File t = new File("templates/template_1.txt");
-    //     Process p = new Process("test", t);
-    //     p.generate_code();
-    //     System.out.println(p.text_section);
-    //     System.out.println(p.text_section.get(3));
-    // }
 
 
 }
