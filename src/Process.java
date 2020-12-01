@@ -88,7 +88,12 @@ public class Process {
         text_section.add("DONE");
         file_in.close();
 
-        return -1;
+        if (num_skips == 0){
+            return -1;
+        } else {
+            return num_skips;
+        }
+
     }
 
     public void generate_code_skip_to_line(int skip_to_this_line){
@@ -109,33 +114,31 @@ public class Process {
         }
 
         while (file_in.hasNextLine()){
+
             next_instruction = file_in.nextLine();
 
-            if (next_instruction.equals("OUT")){
-                text_section.add("PRINTPCB");
-            } else if (next_instruction.contains("CALCULATE")){
-                Scanner read_line = new Scanner(next_instruction);
-                read_line.next(); // skip the next token (calculate)
-
-                int temp_cycles = read_line.nextInt();
+            if (next_instruction.contains("CALCULATE")){
+                next_instruction = next_instruction.replaceAll("\\D", "");
+                int temp_cycles = Integer.parseInt(next_instruction);
                 text_section.add("R " + generate_calc(temp_cycles)); // R to signal ready queue
-
-                read_line.close();
-            } else if (next_instruction.equals("I/O")){
-                text_section.add("W " + generate_io()); // W to signal wait queue
+            } else if (next_instruction.equals("K")){
+                text_section.add("K " + generate_io());
+            } else if (next_instruction.equals("S")){
+                text_section.add("S " + generate_io());
+            } else if (next_instruction.equals("M")){
+                text_section.add("M " + generate_io());
             } else if (next_instruction.equals("<CRITICAL>")){
                 next_instruction = file_in.nextLine(); // skip to the actual instruction, not <CRITICAL>
-                Scanner read_line = new Scanner(next_instruction);
-                read_line.next(); // skip the nex token (calculate)
-                int temp_cycles = read_line.nextInt();
-
-                text_section.add("C " + generate_critical(temp_cycles)); // C to signal critical section
-                read_line.close();
-
+                next_instruction = next_instruction.replaceAll("\\D", "");
+                int temp_cycles = Integer.parseInt(next_instruction);
+                text_section.add("C " + generate_critical(temp_cycles)); // R to signal ready queue
             } else if (next_instruction.equals("</CRITICAL>")) {
                 // do nothing
             } else if (next_instruction.equals("FORK")){
                 // do nothing, child process is created in init_process() > OS
+            } else {
+                // don't add anything if we don't recognize the code
+                // text_section.add("unknown instruction :" + next_instruction);
             }
         }
 
